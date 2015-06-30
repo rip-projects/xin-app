@@ -1,0 +1,266 @@
+<!--
+  @license
+  Copyright (c) 2015 Xinix Technology
+
+  Permission is hereby granted, free of charge, to any person obtaining a
+  copy of this software and associated documentation files (the "Software"),
+  to deal in the Software without restriction, including without limitation
+  the rights to use, copy, modify, merge, publish, distribute, sublicense,
+  and/or sell copies of the Software, and to permit persons to whom the
+  Software is furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+  DEALINGS IN THE SOFTWARE.
+-->
+<link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="../xin/xin.html">
+
+<!--
+`xin-app` is a xin application context.
+
+Example:
+
+    <xin-app></xin-app>
+
+@demo
+-->
+<dom-module id="xin-app">
+  <template>
+    <content></content>
+  </template>
+
+  <style>
+    :host {
+      box-sizing: border-box;
+      display: block;
+    }
+  </style>
+</dom-module>
+
+<script>
+  (function() {
+    'use strict';
+
+    Polymer({
+      is: 'xin-app',
+
+      ready: function() {
+        this._ = new xin.App({
+          el: this,
+          mode: this.mode,
+          rootUri: this.rootUri,
+          hashSeparator: this.hashSeparator,
+          check: appCheck
+        });
+
+        this._.on('*', function(eventName) {
+          var args = Array.prototype.slice.call(arguments, 1);
+
+          this.dispatchEvent(new CustomEvent(eventName, {
+            detail: {
+              args: args
+            }
+          }));
+        }.bind(this));
+
+        if (this.autoStart) {
+          document.addEventListener('WebComponentsReady', function() {
+            this.start();
+          }.bind(this));
+        }
+      },
+
+      properties: {
+        /**
+         * Application router mode, "hash" or "history"
+         * @type {String}
+         */
+        mode: {
+          type: String,
+          value: 'hash',
+          observer: '_changeHash'
+        },
+
+        /**
+         * Hash separator to extract understandable URI from URL
+         * @type {String}
+         */
+        hashSeparator: {
+          type: String,
+          value: '#!',
+          observer: '_changeHashSeparator'
+        },
+
+        /**
+         * Root URI
+         * @type {String}
+         */
+        rootUri: {
+          type: String,
+          value: '/',
+          observer: '_changeRootUri'
+        },
+
+        /**
+         * Boolean value indicates is application auto started
+         * @type {Boolean}
+         */
+        autoStart: {
+          type: Boolean,
+          value: true
+        }
+      },
+
+      _changeRootUri: function(newValue) {
+        if (this._) {
+          this._.rootUri = newValue;
+        }
+      },
+
+      _changeHash: function(newValue) {
+        if (this._) {
+          this._.hash = newValue;
+        }
+      },
+
+      _changeHashSeparator: function(newValue) {
+        if (this._) {
+          this._.hashSeparator = newValue;
+        }
+      },
+
+      /**
+       * Add route of application
+       * @param  {String|RegExp} route    Route to URI
+       * @param  {Function}      callback Function to be invoked when route matches.
+       * @return {void}
+       */
+      route: function(route, callback) {
+        this._.route.call(this._, route, callback.bind(this));
+      },
+
+      /**
+       * Use a middleware
+       * @param  {Function} callback Function to be invoked by middleware
+       * @return {void}
+       */
+      use: function(callback) {
+        this._.use.apply(this._, arguments);
+      },
+
+      /**
+       * Start the application
+       * @return {void}
+       */
+      start: function() {
+        // console.log(this, 'Starting');
+        this._.start.apply(this._, arguments);
+      },
+
+      /**
+       * Navigate to specified URI
+       * @param  {String} uri     Destination URI
+       * @param  {Object} options
+       * @return {void}
+       */
+      navigate: function(uri, options) {
+        this._.navigate.apply(this._, arguments);
+      },
+    });
+
+    var appCheck = function(fragment) {
+      fragment = fragment || this.getFragment();
+      return this.constructor.prototype.check.apply(this, arguments)
+        .then(function(executers) {
+          if (executers.length === 0) {
+            return loadAsNewRoute.call(this, fragment)
+              .then(function(executers) {
+                return executers;
+              }, function() {
+                return executers;
+              });
+          } else {
+            return executers;
+          }
+        }.bind(this));
+    };
+
+    var loadAsNewRoute = function(uri) {
+      return new Promise(function(resolve, reject) {
+        var absoluteUri = this.rootUri + uri.substr(1);
+        if (uri.substr(0, 3) === '/_/') {
+          absoluteUri = uri.substr(3);
+        }
+
+        var imported = document.querySelector('link[rel=import][href="' + absoluteUri + '"]');
+        var defaultViewport = this.el.querySelector('[viewport]');
+
+        if (!imported && defaultViewport) {
+          var importEl = document.createElement('link');
+          importEl.setAttribute('rel', 'import');
+          importEl.setAttribute('href', absoluteUri);
+
+          importEl.addEventListener('error', function(evt) {
+            reject(new Error('Import error'));
+          });
+
+          importEl.addEventListener('load', function(evt) {
+            var importedDoc = importEl.import;
+
+            var viewsToApply = [];
+            var views = Polymer.dom(importedDoc).querySelectorAll('xin-view');
+
+            if (views.length) {
+              views.forEach(function(view) {
+
+                if (view.uri && !document.querySelector('[uri="' + view.uri + '"]')) {
+                  viewsToApply.push(view);
+                }
+              });
+            } else {
+              var view = document.createElement('xin-view');
+              view.setAttribute('uri', uri);
+              Polymer.dom(importedDoc.body).children.forEach(function(el) {
+                if (view.nodeName !== 'SCRIPT') {
+                  view.appendChild(el);
+                }
+              });
+              viewsToApply.push(view);
+            }
+
+            Promise.all(viewsToApply.map(function(view) {
+                return new Promise(function(resolve, reject) {
+                  view.addEventListener('routed', function(evt) {
+                    resolve(evt);
+                  });
+
+                  var viewportId = view.getAttribute('viewport') || (view.parentElement ? view.parentElement.getAttribute('id') : null);
+
+                  if (viewportId) {
+                    throw new Error('Unimplemented attaching to specified viewport id');
+                  } else if (defaultViewport) {
+                    defaultViewport.appendChild(view);
+                  }
+                }.bind(this));
+              }.bind(this)))
+              .then(function() {
+                this.constructor.prototype.check.call(this, uri)
+                  .then(resolve, reject);
+              }.bind(this));
+          }.bind(this));
+          document.head.appendChild(importEl);
+        } else {
+          reject();
+        }
+      }.bind(this));
+    };
+  })(this);
+</script>
