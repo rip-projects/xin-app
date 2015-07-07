@@ -1,4 +1,3 @@
-<!doctype html>
 <!--
   @license
   Copyright (c) 2015 Xinix Technology
@@ -21,48 +20,55 @@
   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
   DEALINGS IN THE SOFTWARE.
 -->
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, minimum-scale=1.0, initial-scale=1.0, user-scalable=yes">
-    <title>xin-app - Remote Views</title>
-    <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
-    <link rel="import" href="../xin-app.html">
-  </head>
-  <body class="fullbleed vertical layout" unresolved>
-    <xin-app>
-      <ul>
-        <li>
-          <a href="#!/">home</a>
-        </li>
-        <li>
-          <a href="#!/another.html">another.html</a>
-        </li>
-      </ul>
+<link rel="import" href="../polymer/polymer.html">
 
-      <div id="result"></div>
-    </xin-app>
+<!--
+`xin-app` is a xin application context.
 
-    <a href="./">Back</a>
+Example:
 
-    <script type="text/javascript">
-    (function() {
-      'use strict';
+    <xin-app></xin-app>
 
-      var resultEl = document.getElementById('result');
+@demo
+-->
+<dom-module id="xin-app">
+  <template>
+    <content></content>
+  </template>
 
-      var app = document.querySelector('xin-app');
+  <style>
+    :host {
+      box-sizing: border-box;
+      display: block;
+    }
+  </style>
+</dom-module>
 
-      app.route('/', function() {
-        resultEl.innerHTML = 'Home selected';
-      });
+<script>
+  (function() {
+    'use strict';
 
-      app.addEventListener('not-found', function() {
-        alert('404 Not Found');
-        app.navigate('/');
-      });
+    Polymer({
+      is: 'xin-route',
 
-    })(this);
-    </script>
-  </body>
-</html>
+      extends: 'script',
+
+      attached: function() {
+        var appEl = this.parentNode;
+        while (appEl && appEl.nodeName !== 'XIN-APP') {
+          appEl = appEl.parentNode;
+        }
+
+        this.$app = appEl;
+
+        var fn = eval(this.textContent);
+
+        this.$app.route(this.uri, fn);
+      },
+
+      properties: {
+        uri: String
+      },
+    });
+  })(this);
+</script>

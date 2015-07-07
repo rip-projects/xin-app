@@ -28,9 +28,57 @@
     <title>xin-app - Routing</title>
     <script src="../../webcomponentsjs/webcomponents-lite.js"></script>
     <link rel="import" href="../xin-app.html">
+    <link rel="import" href="../xin-route.html">
+    <link rel="import" href="../xin-middleware.html">
   </head>
   <body class="fullbleed vertical layout" unresolved>
     <xin-app>
+      <script is="xin-middleware">
+      (function() {
+        console.log('middleware #1');
+      });
+      </script>
+
+      <script is="xin-middleware">
+      (function() {
+        if (location.hash === '#!/foo') {
+          this.navigate('/');
+          return;
+        }
+        console.log('middleware #2');
+      });
+      </script>
+
+      <script is="xin-route" uri="/">
+        (function() {
+          this.homeCount = this.homeCount || 0;
+          this.homeCount++;
+
+          var resultEl = document.getElementById('result');
+          resultEl.innerHTML = 'Home selected ' + this.homeCount;
+        });
+      </script>
+
+      <script is="xin-route" uri="/foo">
+        (function() {
+          this.fooCount = this.fooCount || 0;
+          this.fooCount++;
+
+          var resultEl = document.getElementById('result');
+          resultEl.innerHTML = 'Foo selected ' + this.fooCount;
+        });
+      </script>
+
+      <script is="xin-route" uri="/bar">
+        (function() {
+          this.barCount = this.barCount || 0;
+          this.barCount++;
+
+          var resultEl = document.getElementById('result');
+          resultEl.innerHTML = 'Bar selected ' + this.barCount;
+        });
+      </script>
+
       <ul>
         <li>
           <a href="#!/">home</a>
@@ -49,26 +97,26 @@
     <a href="./">Back</a>
 
     <script type="text/javascript">
-    (function() {
-      'use strict';
+    // (function() {
+    //   'use strict';
 
-      var resultEl = document.getElementById('result');
+    //   var resultEl = document.getElementById('result');
 
-      var app = document.querySelector('xin-app');
+    //   var app = document.querySelector('xin-app');
 
-      app.route('/', function() {
-        resultEl.innerHTML = 'Home selected';
-      });
+    //   app.route('/', function() {
+    //     resultEl.innerHTML = 'Home selected';
+    //   });
 
-      app.route('/foo', function() {
-        resultEl.innerHTML = 'Foo selected';
-      });
+    //   app.route('/foo', function() {
+    //     resultEl.innerHTML = 'Foo selected';
+    //   });
 
-      app.route('/bar', function() {
-        resultEl.innerHTML = 'Bar selected';
-      });
+    //   app.route('/bar', function() {
+    //     resultEl.innerHTML = 'Bar selected';
+    //   });
 
-    })(this);
+    // })(this);
     </script>
   </body>
 </html>
