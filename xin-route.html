@@ -23,26 +23,18 @@
 <link rel="import" href="../polymer/polymer.html">
 
 <!--
-`xin-app` is a xin application context.
+`xin-route` adding route to <xin-app> imperatively
 
 Example:
 
-    <xin-app></xin-app>
+    <xin-route uri="/some/uri">
+      <script>
+        console.log('Hello world!');
+      </script>
+    </xin-route>
 
 @demo
 -->
-<dom-module id="xin-app">
-  <template>
-    <content></content>
-  </template>
-
-  <style>
-    :host {
-      box-sizing: border-box;
-      display: block;
-    }
-  </style>
-</dom-module>
 
 <script>
   (function() {
@@ -51,19 +43,23 @@ Example:
     Polymer({
       is: 'xin-route',
 
-      extends: 'script',
+      extends: 'template',
 
       attached: function() {
-        var appEl = this.parentNode;
-        while (appEl && appEl.nodeName !== 'XIN-APP') {
-          appEl = appEl.parentNode;
-        }
+        this.$app = xin.dom(this).parent('xin-app');
 
-        this.$app = appEl;
+        var $script = this.content.querySelector('script');
+        $script.$app = this.$app;
 
-        var fn = eval(this.textContent);
+        $script.textContent = '\n' +
+          '(function($app) {\n' +
+          '  \'use strict\';\n' +
+          '  $app.route(\'' + this.uri + '\', function() {\n' +
+          '    ' + $script.textContent.trim() + '\n' +
+          '  });\n' +
+          '})(document.currentScript.$app);\n';
 
-        this.$app.route(this.uri, fn);
+        Polymer.dom(this.parentElement).insertBefore($script, this);
       },
 
       properties: {

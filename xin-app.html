@@ -54,7 +54,7 @@ Example:
 
       ready: function() {
         this._ = new xin.App({
-          el: this,
+          element: this,
           mode: this.mode,
           rootUri: this.rootUri,
           hashSeparator: this.hashSeparator,
@@ -64,11 +64,14 @@ Example:
         this._.on('*', function(eventName) {
           var args = Array.prototype.slice.call(arguments, 1);
 
-          this.dispatchEvent(new CustomEvent(eventName, {
-            detail: {
-              args: args
-            }
-          }));
+          this.fire(eventName, {
+            args: args
+          });
+          // this.dispatchEvent(new CustomEvent(eventName, {
+          //   detail: {
+          //     args: args
+          //   }
+          // }));
         }.bind(this));
 
         if (this.autoStart) {
@@ -109,6 +112,12 @@ Example:
           observer: '_changeRootUri'
         },
 
+        homeUri: {
+          type: String,
+          value: '/',
+          observer: '_changeHomeUri'
+        },
+
         /**
          * Boolean value indicates is application auto started
          * @type {Boolean}
@@ -135,6 +144,25 @@ Example:
         if (this._) {
           this._.hashSeparator = newValue;
         }
+      },
+
+      _changeHomeUri: function(homeUri, oldHomeUri) {
+        if (homeUri === '/') return;
+
+        this.async(function() {
+
+          var rootReStr = this._._routeToRegExp(homeUri).toString();
+
+          this._.handlers = this._.handlers.filter(function(handler) {
+            if (handler.re.toString() !== rootReStr) {
+              return true;
+            }
+          });
+
+          this.route('/', function() {
+            this.navigate(homeUri);
+          });
+        });
       },
 
       /**
@@ -174,6 +202,18 @@ Example:
       navigate: function(uri, options) {
         this._.navigate.apply(this._, arguments);
       },
+
+      /**
+       * Get current URI
+       * @return {String} Current URI
+       */
+      getURI: function() {
+        return this._.getURI.apply(this._, arguments);
+      },
+
+      home: function() {
+        this.navigate(this.homeUri);
+      }
     });
 
     var appCheck = function(fragment) {
@@ -181,7 +221,7 @@ Example:
       return this.constructor.prototype.check.apply(this, arguments)
         .then(function(executers) {
           if (executers.length === 0) {
-            return loadAsNewRoute.call(this, fragment)
+            return _loadAsNewRoute.call(this, fragment)
               .then(function(executers) {
                 return executers;
               }, function() {
@@ -193,7 +233,7 @@ Example:
         }.bind(this));
     };
 
-    var loadAsNewRoute = function(uri) {
+    var _loadAsNewRoute = function(uri) {
       return new Promise(function(resolve, reject) {
         var absoluteUri = this.rootUri + uri.substr(1);
         if (uri.substr(0, 3) === '/_/') {
@@ -201,19 +241,19 @@ Example:
         }
 
         var imported = document.querySelector('link[rel=import][href="' + absoluteUri + '"]');
-        var defaultViewport = this.el.querySelector('[viewport]');
+        var defaultViewport = this.element.querySelector('[viewport]');
 
         if (!imported && defaultViewport) {
-          var importEl = document.createElement('link');
-          importEl.setAttribute('rel', 'import');
-          importEl.setAttribute('href', absoluteUri);
+          var $linkImport = document.createElement('link');
+          $linkImport.setAttribute('rel', 'import');
+          $linkImport.setAttribute('href', absoluteUri);
 
-          importEl.addEventListener('error', function(evt) {
+          $linkImport.addEventListener('error', function(evt) {
             reject(new Error('Import error'));
           });
 
-          importEl.addEventListener('load', function(evt) {
-            var importedDoc = importEl.import;
+          $linkImport.addEventListener('load', function(evt) {
+            var importedDoc = $linkImport.import;
 
             var viewsToApply = [];
             var views = Polymer.dom(importedDoc).querySelectorAll('xin-view');
@@ -228,9 +268,9 @@ Example:
             } else {
               var view = document.createElement('xin-view');
               view.setAttribute('uri', uri);
-              Polymer.dom(importedDoc.body).children.forEach(function(el) {
+              Polymer.dom(importedDoc.body).children.forEach(function(element) {
                 if (view.nodeName !== 'SCRIPT') {
-                  view.appendChild(el);
+                  view.appendChild(element);
                 }
               });
               viewsToApply.push(view);
@@ -256,7 +296,7 @@ Example:
                   .then(resolve, reject);
               }.bind(this));
           }.bind(this));
-          document.head.appendChild(importEl);
+          document.head.appendChild($linkImport);
         } else {
           reject();
         }
