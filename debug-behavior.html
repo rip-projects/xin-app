@@ -1,0 +1,44 @@
+<script type="text/javascript">
+(function(root) {
+  'use strict';
+
+  var DebugBehavior = {
+    created: function() {
+      this.log('created');
+    },
+
+    ready: function() {
+      this.log('ready');
+    },
+
+    attached: function() {
+      this.log('attached');
+    },
+
+    getFormattedNodeName: function() {
+      var nodeName = this.nodeName;
+      for(var i = (16 - nodeName.length); i > 0; i--) {
+        nodeName += ' ';
+      }
+      return nodeName.substr(0, 16);
+    },
+
+    log: function() {
+      var args = Array.prototype.slice.apply(arguments);
+      args.unshift(this.getFormattedNodeName());
+      console.log.apply(console, args);
+    },
+
+    group: function(groupName) {
+      groupName = this.getFormattedNodeName() + ' ' + groupName;
+      console.group.call(console, groupName);
+    },
+    groupEnd: function(groupName) {
+      groupName = this.getFormattedNodeName() + ' ' + groupName;
+      console.groupEnd.call(console, groupName);
+    },
+  };
+
+  xin.DebugBehavior = DebugBehavior;
+})(this);
+</script>

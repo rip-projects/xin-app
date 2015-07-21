@@ -21,6 +21,7 @@
   DEALINGS IN THE SOFTWARE.
 -->
 <link rel="import" href="../polymer/polymer.html">
+<link rel="import" href="./container-behavior.html">
 
 <!--
 `xin-route` adding route to <xin-app> imperatively
@@ -45,21 +46,23 @@ Example:
 
       extends: 'template',
 
+      behaviors: [xin.ContainerBehavior],
+
       attached: function() {
-        this.$app = xin.dom(this).parent('xin-app');
+        this.app$ = xin.dom(this).parent('.xin-app');
 
-        var $script = this.content.querySelector('script');
-        $script.$app = this.$app;
+        var script$ = this.content.querySelector('script');
+        script$.app$ = this.app$;
 
-        $script.textContent = '\n' +
-          '(function($app) {\n' +
+        script$.textContent = '\n' +
+          '(function(app$) {\n' +
           '  \'use strict\';\n' +
-          '  $app.route(\'' + this.uri + '\', function() {\n' +
-          '    ' + $script.textContent.trim() + '\n' +
+          '  app$.route(\'' + this.uri + '\', function() {\n' +
+          '    ' + script$.textContent.trim() + '\n' +
           '  });\n' +
-          '})(document.currentScript.$app);\n';
+          '})(document.currentScript.app$);\n';
 
-        Polymer.dom(this.parentElement).insertBefore($script, this);
+        Polymer.dom(this.parentElement).insertBefore(script$, this);
       },
 
       properties: {

@@ -1,0 +1,330 @@
+<link rel="import" href="../xin/xin.html">
+<link rel="import" href="./debug-behavior.html">
+
+<script type="text/javascript">
+(function(root) {
+  'use strict';
+
+  var AppBehavior = {
+    created: function() {
+      this.classList.add('xin-app');
+
+      this.storage = sessionStorage;
+
+      this._initContainer();
+    },
+
+    ready: function() {
+
+      for(var i in this.storage) {
+        var val = this.storage[i];
+        try {
+          val = JSON.parse(val);
+        } catch(e) {
+        }
+
+        this.write('$$' + i, val);
+      }
+
+      this._ = new xin.App({
+        element: this,
+        mode: this.mode,
+        rootUri: this.rootUri,
+        hashSeparator: this.hashSeparator,
+        check: appCheck
+      });
+
+      this._.on('*', function(eventName) {
+        var args = Array.prototype.slice.call(arguments, 1);
+
+        this.fire(eventName, {
+          args: args
+        });
+      }.bind(this));
+
+      if (this.autoStart) {
+        document.addEventListener('WebComponentsReady', function() {
+          this.start();
+        }.bind(this));
+      }
+    },
+
+    properties: {
+      /**
+       * Application router mode, "hash" or "history"
+       * @type {String}
+       */
+      mode: {
+        type: String,
+        value: 'hash',
+        observer: '_changeHash'
+      },
+
+      /**
+       * Hash separator to extract understandable URI from URL
+       * @type {String}
+       */
+      hashSeparator: {
+        type: String,
+        value: '#!',
+        observer: '_changeHashSeparator'
+      },
+
+      /**
+       * Root URI
+       * @type {String}
+       */
+      rootUri: {
+        type: String,
+        value: '/',
+        observer: '_changeRootUri'
+      },
+
+      homeUri: {
+        type: String,
+        value: '/',
+        observer: '_changeHomeUri'
+      },
+
+      /**
+       * Boolean value indicates is application auto started
+       * @type {Boolean}
+       */
+      autoStart: {
+        type: Boolean,
+        value: true
+      }
+    },
+
+    _initContainer: function() {
+      this.__container__ = {};
+
+      // define event listener before ready
+      this.addEventListener('container-write', this._containerWritten.bind(this));
+    },
+
+    _changeRootUri: function(newValue) {
+      if (this._) {
+        this._.rootUri = newValue;
+      }
+    },
+
+    _changeHash: function(newValue) {
+      if (this._) {
+        this._.hash = newValue;
+      }
+    },
+
+    _changeHashSeparator: function(newValue) {
+      if (this._) {
+        this._.hashSeparator = newValue;
+      }
+    },
+
+    _changeHomeUri: function(homeUri, oldHomeUri) {
+      if (homeUri === '/') return;
+
+      this.async(function() {
+
+        this._.handlers = this._.handlers.filter(function(handler) {
+          if (handler.re.toString() !== '/') {
+            return true;
+          }
+        });
+
+        this.route('/', function() {
+          this.navigate(homeUri);
+        });
+
+      });
+    },
+
+    _containerWritten: function(evt) {
+      this.log('changed', evt.detail.property, '<-', evt.target.nodeName);
+      if (this[evt.detail.property] !== evt.detail.newValue) {
+        this.log('written', evt.detail.property, '<-', evt.target.nodeName);
+
+        this.__container__[evt.detail.property] = evt.detail.newValue;
+        this.set(evt.detail.property, evt.detail.newValue);
+
+        if (evt.detail.property.indexOf('$$') === 0) {
+          if (evt.detail.newValue === null) {
+            delete this.storage[evt.detail.property.substr(2)];
+            return;
+          }
+
+          var serializedVal = typeof evt.detail.newValue === 'string' ? evt.detail.newValue : JSON.stringify(evt.detail.newValue);
+          if (serializedVal) {
+            this.storage[evt.detail.property.substr(2)] = serializedVal;
+          }
+        }
+      }
+    },
+
+    /**
+     * Add route of application
+     * @param  {String|RegExp} route    Route to URI
+     * @param  {Function}      callback Function to be invoked when route matches.
+     * @return {void}
+     */
+    route: function(route, callback) {
+      this._.route.call(this._, route, callback.bind(this));
+    },
+
+    /**
+     * Use a middleware
+     * @param  {Function} callback Function to be invoked by middleware
+     * @return {void}
+     */
+    use: function(callback) {
+      this._.use.apply(this._, arguments);
+    },
+
+    /**
+     * Start the application
+     * @return {void}
+     */
+    start: function() {
+      this._.start.apply(this._, arguments);
+    },
+
+    /**
+     * Navigate to specified URI
+     * @param  {String} uri     Destination URI
+     * @param  {Object} options
+     * @return {void}
+     */
+    navigate: function(uri, options) {
+      this._.navigate.apply(this._, arguments);
+    },
+
+    /**
+     * Get current URI
+     * @return {String} Current URI
+     */
+    getURI: function() {
+      return this._.getURI.apply(this._, arguments);
+    },
+
+    read: function() {
+      return this.__container__;
+    },
+
+    write: function(property, value) {
+      if (property[0] !== '$') {
+        throw new Error('Cannot set non global value with write()');
+      }
+
+      var oldValue = this.__container__[property] || this.__data__[property];
+
+      this.__container__[property] = value;
+      this.set(property, value);
+
+      if (property.indexOf('$$') === 0) {
+        if (value === null) {
+          delete this.storage[property.substr(2)];
+          return;
+        }
+
+        var serializedVal = typeof value === 'string' ? value : JSON.stringify(value);
+        if (serializedVal) {
+          this.storage[property.substr(2)] = serializedVal;
+        }
+      }
+
+      this.fire('container-write', {
+        property: property,
+        newValue: value,
+        oldValue: oldValue
+      });
+    },
+
+    $home: function() {
+      this.navigate(this.homeUri);
+    }
+  };
+
+  var appCheck = function(fragment) {
+    fragment = fragment || this.getFragment();
+
+    return this.constructor.prototype.check.apply(this, arguments)
+      .then(function(executers) {
+        if (executers.length === 0) {
+          console.warn('Handler ' + fragment + ' not found, trying to remote fetch...');
+          return _loadAsNewRoute.call(this, fragment)
+            .then(function(executers) {
+              return executers;
+            }, function() {
+              return executers;
+            });
+        } else {
+          return executers;
+        }
+      }.bind(this));
+  };
+
+  var _loadAsNewRoute = function(uri) {
+    return new Promise(function(resolve, reject) {
+      var absoluteUri = this.rootUri + uri.substr(1);
+      if (uri.substr(0, 3) === '/_/') {
+        absoluteUri = uri.substr(3);
+      }
+
+      var imported = document.querySelector('link[rel=import][href="' + absoluteUri + '"]');
+      var defaultViewport = this.element.querySelector('[viewport]');
+
+      if (!imported && defaultViewport) {
+        xin.import(absoluteUri)
+          .then(function(link$) {
+            var importedDoc = link$.import;
+
+            var viewsToApply = [];
+            var views = Polymer.dom(importedDoc).querySelectorAll('.xin-view');
+
+            if (views.length) {
+              views.forEach(function(view) {
+
+                if (view.uri && !document.querySelector('[uri="' + view.uri + '"]')) {
+                  viewsToApply.push(view);
+                }
+              });
+            } else {
+              var view = document.createElement('xin-view');
+              view.setAttribute('uri', uri);
+              Polymer.dom(importedDoc.body).children.forEach(function(element) {
+                if (view.nodeName !== 'SCRIPT') {
+                  view.appendChild(element);
+                }
+              });
+              viewsToApply.push(view);
+            }
+
+            Promise.all(viewsToApply.map(function(view) {
+                return new Promise(function(resolve, reject) {
+                  view.addEventListener('routed', function(evt) {
+                    resolve(evt);
+                  });
+
+                  var viewportId = view.getAttribute('viewport') || (view.parentElement ? view.parentElement.getAttribute('id') : null);
+
+                  if (viewportId) {
+                    throw new Error('Unimplemented attaching to specified viewport id');
+                  } else if (defaultViewport) {
+                    defaultViewport.appendChild(view);
+                  }
+                }.bind(this));
+              }.bind(this)))
+              .then(function() {
+                this.constructor.prototype.check.call(this, uri)
+                  .then(resolve, reject);
+              }.bind(this));
+          }.bind(this));
+      } else {
+        reject();
+      }
+    }.bind(this));
+  };
+
+  xin.AppBehavior = [xin.DebugBehavior, AppBehavior];
+})(this);
+</script>

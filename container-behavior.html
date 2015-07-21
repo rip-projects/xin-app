@@ -1,0 +1,89 @@
+<link rel="import" href="./debug-behavior.html">
+
+<script type="text/javascript">
+(function(root) {
+  'use strict';
+
+  var ContainerBehavior = {
+    attached: function() {
+      this.app$ = xin.dom(this).parent('.xin-app');
+
+      if (!this.app$) {
+        throw new Error('Cannot use ContainerBehavior without AppBehavior scope');
+      }
+
+      this._initContainer();
+      this._initGlobalFunctions();
+    },
+
+    detached: function() {
+      Object.getOwnPropertyNames(this).forEach(function(i) {
+        if (i[0] === '$' && typeof this[i] === 'function') {
+          delete this[i];
+        }
+      }.bind(this));
+
+      delete this.app$;
+    },
+
+    _initContainer: function() {
+      Object.getOwnPropertyNames(this.__data__).forEach(function(property) {
+        if (property[0] === '$') {
+          this.write(property, this.__data__[property]);
+        }
+      }.bind(this));
+
+      var data = this.app$.read();
+      this.group('populate container');
+      Object.getOwnPropertyNames(data).forEach(function(property) {
+        this.log(property);
+        this.set(property, data[property]);
+      }.bind(this));
+      this.groupEnd('populate container');
+
+      this.app$.addEventListener('container-write', this._containerWritten.bind(this));
+
+      if (this.id && this.id[0] === '$') {
+        this.write(this.id, this);
+      }
+    },
+
+    _initGlobalFunctions: function() {
+      var proto = xin.getPrototypeOf(this.app$);
+
+      Object.getOwnPropertyNames(proto).some(function(i) {
+        if (i[0] === '$' && typeof this.app$[i] === 'function') {
+          this[i] = function() {
+            return this.app$[i].apply(this.app$, arguments);
+          };
+        }
+      }.bind(this));
+    },
+
+    _containerWritten: function(evt) {
+      this.log('changed', evt.detail.property, '<-', evt.target.nodeName);
+      if (this[evt.detail.property] !== evt.detail.newValue) {
+        this.log('written', evt.detail.property, '<-', evt.target.nodeName);
+        this.set(evt.detail.property, evt.detail.newValue);
+      }
+    },
+
+    write: function(property, newValue) {
+      if (property[0] !== '$') {
+        throw new Error('Cannot set non global value with write()');
+      }
+
+      var oldValue = this[property];
+      this.set(property, newValue);
+
+      this.fire('container-write', {
+        property: property,
+        newValue: newValue,
+        oldValue: oldValue,
+      });
+    },
+  };
+
+  xin.ContainerBehavior = [xin.DebugBehavior, ContainerBehavior];
+})(this);
+</script>
