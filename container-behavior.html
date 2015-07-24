@@ -71,7 +71,7 @@
       Object.getOwnPropertyNames(xin.getPrototypeOf(this.app$)).forEach(function(property) {
         if (property[0] === '$'  && typeof this.app$[property] === 'function') {
           this[property] = function() {
-            return this.app$[property].call(this.app$, arguments);
+            return this.app$[property].apply(this.app$, arguments);
           };
         }
       }.bind(this));
