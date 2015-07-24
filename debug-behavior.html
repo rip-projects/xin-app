@@ -29,6 +29,12 @@
       console.log.apply(console, args);
     },
 
+    warn: function() {
+      var args = Array.prototype.slice.apply(arguments);
+      args.unshift(this.getFormattedNodeName());
+      console.warn.apply(console, args);
+    },
+
     group: function(groupName) {
       groupName = this.getFormattedNodeName() + ' ' + groupName;
       console.group.call(console, groupName);

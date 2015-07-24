@@ -9,21 +9,31 @@
     created: function() {
       this.classList.add('xin-app');
 
-      this.storage = sessionStorage;
+      this.storage = localStorage;
 
-      this._initContainer();
+      this.__global__ = {};
+      for(var i in this.storage) {
+        if (i[0] === '$' && i[1] === '$') {
+          var value = this.storage[i];
+          try {
+            value = JSON.parse(value);
+          } catch(e) {}
+          this.__global__[i] = value;
+        }
+      }
+
+      for(var property in this.properties) {
+        if (property[0] === '$' && this.properties[property].notify) {
+          this._addPropertyEffect(property, 'function', this._notifySyncProperty);
+        }
+      }
+
+      this.addEventListener('property-sync', this._syncProperty.bind(this));
     },
 
     ready: function() {
-
-      for(var i in this.storage) {
-        var val = this.storage[i];
-        try {
-          val = JSON.parse(val);
-        } catch(e) {
-        }
-
-        this.write('$$' + i, val);
+      for(var i in this.__global__) {
+        this.set(i, this.__global__[i]);
       }
 
       this._ = new xin.App({
@@ -96,11 +106,20 @@
       }
     },
 
-    _initContainer: function() {
-      this.__container__ = {};
+    _notifySyncProperty: function(property, value) {
+      this.fire('property-sync', {
+        property: property,
+        value: value
+      });
+    },
 
-      // define event listener before ready
-      this.addEventListener('container-write', this._containerWritten.bind(this));
+    _syncProperty: function(evt) {
+      this.log('sync', evt.detail.property);
+      this.__global__[evt.detail.property] = evt.detail.value;
+      if (evt.detail.property[0] === '$' && evt.detail.property[1] === '$') {
+        this.storage[evt.detail.property] = JSON.stringify(evt.detail.value);
+      }
+      this.set(evt.detail.property, evt.detail.value);
     },
 
     _changeRootUri: function(newValue) {
@@ -137,28 +156,6 @@
         });
 
       });
-    },
-
-    _containerWritten: function(evt) {
-      this.log('changed', evt.detail.property, '<-', evt.target.nodeName);
-      if (this[evt.detail.property] !== evt.detail.newValue) {
-        this.log('written', evt.detail.property, '<-', evt.target.nodeName);
-
-        this.__container__[evt.detail.property] = evt.detail.newValue;
-        this.set(evt.detail.property, evt.detail.newValue);
-
-        if (evt.detail.property.indexOf('$$') === 0) {
-          if (evt.detail.newValue === null) {
-            delete this.storage[evt.detail.property.substr(2)];
-            return;
-          }
-
-          var serializedVal = typeof evt.detail.newValue === 'string' ? evt.detail.newValue : JSON.stringify(evt.detail.newValue);
-          if (serializedVal) {
-            this.storage[evt.detail.property.substr(2)] = serializedVal;
-          }
-        }
-      }
     },
 
     /**
@@ -206,39 +203,6 @@
       return this._.getURI.apply(this._, arguments);
     },
 
-    read: function() {
-      return this.__container__;
-    },
-
-    write: function(property, value) {
-      if (property[0] !== '$') {
-        throw new Error('Cannot set non global value with write()');
-      }
-
-      var oldValue = this.__container__[property] || this.__data__[property];
-
-      this.__container__[property] = value;
-      this.set(property, value);
-
-      if (property.indexOf('$$') === 0) {
-        if (value === null) {
-          delete this.storage[property.substr(2)];
-          return;
-        }
-
-        var serializedVal = typeof value === 'string' ? value : JSON.stringify(value);
-        if (serializedVal) {
-          this.storage[property.substr(2)] = serializedVal;
-        }
-      }
-
-      this.fire('container-write', {
-        property: property,
-        newValue: value,
-        oldValue: oldValue
-      });
-    },
-
     $home: function() {
       this.navigate(this.homeUri);
     }
@@ -279,7 +243,7 @@
             var importedDoc = link$.import;
 
             var viewsToApply = [];
-            var views = Polymer.dom(importedDoc).querySelectorAll('.xin-view');
+            var views = Polymer.dom(importedDoc).querySelectorAll('.xin-view-behavior');
 
             if (views.length) {
               views.forEach(function(view) {
